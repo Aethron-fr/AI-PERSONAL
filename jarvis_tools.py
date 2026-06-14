@@ -398,6 +398,102 @@ class JarvisTools:
         cmd = apps.get(name_lower, app_name)
         return self.run_command(f'start {cmd}')
 
+    # ─── HUMAN-LIKE & ADVANCED SYSTEM TOOLS ───────────────────────
 
-# Add time import at module level
+    def set_volume(self, level):
+        """Set system volume (0 to 100). Windows only."""
+        try:
+            if platform.system() == 'Windows':
+                # Using PowerShell to set volume via NirCmd or built-in audio objects is complex,
+                # but we can simulate volume up/down keypresses.
+                # A simpler approach using SoundVolumeView or pycaw.
+                # Let's use PyAutoGUI to just press VolumeUp/VolumeDown.
+                import pyautogui
+                # Reset to 0 then go up
+                for _ in range(50):
+                    pyautogui.press('volumedown')
+                target = int(level) // 2
+                for _ in range(target):
+                    pyautogui.press('volumeup')
+                return f"Volume set to approximately {level}%"
+            return "Volume control is currently supported on Windows."
+        except Exception as e:
+            return f"Volume error: {e}"
+
+    def play_media(self, action="playpause"):
+        """Control media: playpause, nexttrack, prevtrack."""
+        try:
+            import pyautogui
+            if action in ['play', 'pause', 'playpause']:
+                pyautogui.press('playpause')
+                return "Toggled play/pause."
+            elif action in ['next', 'nexttrack']:
+                pyautogui.press('nexttrack')
+                return "Playing next track."
+            elif action in ['prev', 'prevtrack']:
+                pyautogui.press('prevtrack')
+                return "Playing previous track."
+            return "Unknown media action."
+        except Exception as e:
+            return f"Media control error: {e}"
+
+    def play_song_on_youtube(self, song_name):
+        """Search and instantly play a song on YouTube."""
+        try:
+            import urllib.parse
+            url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(song_name)}"
+            webbrowser.open(url)
+            import time
+            time.sleep(3) # Wait for page to load
+            import pyautogui
+            # Click the first video (approximate center of screen, a bit down)
+            # Or better, just press Tab and Enter a few times to select the first video
+            for _ in range(3):
+                pyautogui.press('tab')
+            pyautogui.press('enter')
+            return f"Playing {song_name} on YouTube!"
+        except Exception as e:
+            return f"Could not play song: {e}"
+
+    def lock_screen(self):
+        """Lock the computer screen."""
+        try:
+            if platform.system() == 'Windows':
+                import ctypes
+                ctypes.windll.user32.LockWorkStation()
+                return "Screen locked."
+            elif platform.system() == 'Darwin':
+                os.system('pmset displaysleepnow')
+                return "Screen locked."
+            return "Lock screen not supported on this OS."
+        except Exception as e:
+            return f"Lock error: {e}"
+
+    def empty_recycle_bin(self):
+        """Empty the Windows Recycle Bin."""
+        try:
+            if platform.system() == 'Windows':
+                import ctypes
+                SHEmptyRecycleBin = ctypes.windll.shell32.SHEmptyRecycleBinW
+                result = SHEmptyRecycleBin(None, None, 7) # 7 = No confirmation, no progress UI, no sound
+                if result == 0:
+                    return "Recycle bin emptied."
+                return "Recycle bin was already empty or could not be emptied."
+            return "Only supported on Windows."
+        except Exception as e:
+            return f"Recycle bin error: {e}"
+
+    def tell_joke(self):
+        """Fetch a random joke."""
+        import requests
+        try:
+            r = requests.get('https://v2.jokeapi.dev/joke/Any?safe-mode')
+            data = r.json()
+            if data['type'] == 'single':
+                return data['joke']
+            else:
+                return f"{data['setup']} ... {data['delivery']}"
+        except Exception:
+            return "Why did the AI cross the road? To optimize the path on the other side! (Sorry, my joke API is down)."
+
 import time
