@@ -305,25 +305,36 @@ class AnushkaBrain:
         if len(self.history) > self.max_history:
             self.history = self.history[-self.max_history:]
 
+        # Short-term working memory for ReAct loops (thrown away after task is done)
+        working_memory = []
+
         for _ in range(10): # ReAct Loop: Max 10 steps
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
                         {"role": "system", "content": self.system_prompt},
-                        *self.history
+                        *self.history,
+                        *working_memory
                     ],
                     temperature=0.7,
                     max_tokens=1500,
                 )
                 reply = response.choices[0].message.content
             except Exception as e:
+                error_msg = str(e)
+                if "429" in error_msg or "Rate limit" in error_msg:
+                    if self.model != 'llama3-8b-8192':
+                        console.print("[yellow]Rate limit reached on 70B model. Falling back to 8B model...[/yellow]")
+                        self.model = 'llama3-8b-8192'
+                        continue
+                
                 reply = f"Hmm, I ran into a small issue: {e}. Check your API key in the .env file."
                 self.history.append({"role": "assistant", "content": reply})
                 self.memory.save_conversation("anushka", reply)
                 return reply
 
-            self.history.append({"role": "assistant", "content": reply})
+            working_memory.append({"role": "assistant", "content": reply})
 
             # Detect Agentic Tool Call JSON
             start_idx = reply.find('{')
@@ -340,14 +351,16 @@ class AnushkaBrain:
                         
                         result = self.execute_tool(call)
                         
-                        # Add observation back to the LLM and loop again
+                        # Add observation back to working memory and loop again
                         observation = f"[OBSERVATION]\n{result}"
-                        self.history.append({"role": "user", "content": observation})
+                        working_memory.append({"role": "user", "content": observation})
                         continue
                 except json.JSONDecodeError:
                     pass
 
             # If we didn't loop (no valid tool call found), this is the final answer!
+            # We ONLY append the final answer to the long-term history!
+            self.history.append({"role": "assistant", "content": reply})
             self.memory.save_conversation("anushka", reply)
             return reply
 
