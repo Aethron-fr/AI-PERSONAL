@@ -1,11 +1,6 @@
 @echo off
-echo.
-echo  ============================================
-echo   ANUSHKA - Your Personal AI Companion
-echo   Starting up...
-echo  ============================================
-echo.
-
+TITLE Anushka AI Companion
 cd /d "%~dp0"
-call jarvis_env\Scripts\activate.bat
-python anushka_main.py text
+echo Starting ANUSHKA...
+start "" ".\jarvis_env\Scripts\pythonw.exe" anushka_main.py
+exit
