@@ -496,4 +496,105 @@ class JarvisTools:
         except Exception:
             return "Why did the AI cross the road? To optimize the path on the other side! (Sorry, my joke API is down)."
 
+    # ─── ULTIMATE PC CONTROL TOOLS ────────────────────────────────
+
+    def minimize_all_windows(self):
+        """Minimize all open windows (Show Desktop)."""
+        try:
+            import pyautogui
+            pyautogui.hotkey('win', 'd')
+            return "Minimized all windows (Show Desktop)."
+        except Exception as e:
+            return f"Error minimizing windows: {e}"
+
+    def close_current_window(self):
+        """Close the currently active window (Alt+F4)."""
+        try:
+            import pyautogui
+            pyautogui.hotkey('alt', 'f4')
+            return "Closed current window."
+        except Exception as e:
+            return f"Error closing window: {e}"
+
+    def switch_window(self):
+        """Switch to the previous window (Alt+Tab)."""
+        try:
+            import pyautogui
+            pyautogui.hotkey('alt', 'tab')
+            return "Switched window."
+        except Exception as e:
+            return f"Error switching window: {e}"
+
+    def open_system_settings(self, setting_name=""):
+        """Open Windows settings (e.g. 'display', 'bluetooth', 'wifi', or empty for main)."""
+        try:
+            setting_map = {
+                'display': 'ms-settings:display',
+                'bluetooth': 'ms-settings:bluetooth',
+                'wifi': 'ms-settings:network-wifi',
+                'network': 'ms-settings:network-status',
+                'sound': 'ms-settings:sound',
+                'update': 'ms-settings:windowsupdate',
+            }
+            target = setting_map.get(setting_name.lower(), 'ms-settings:')
+            self.run_command(f'start {target}')
+            return f"Opened {setting_name if setting_name else 'system'} settings."
+        except Exception as e:
+            return f"Error opening settings: {e}"
+
+    def toggle_mute(self):
+        """Mute or unmute the system volume."""
+        try:
+            import pyautogui
+            pyautogui.press('volumemute')
+            return "Toggled system mute."
+        except Exception as e:
+            return f"Mute error: {e}"
+
+    def check_internet_speed(self):
+        """Check internet download and upload speed."""
+        try:
+            import speedtest
+            st = speedtest.Speedtest()
+            st.get_best_server()
+            download = st.download() / 1024 / 1024
+            upload = st.upload() / 1024 / 1024
+            return f"Download: {download:.2f} Mbps | Upload: {upload:.2f} Mbps"
+        except ImportError:
+            return "Speedtest-cli module not installed. Run: pip install speedtest-cli"
+        except Exception as e:
+            return f"Speed test error: {e}"
+
+    def get_ip_address(self):
+        """Get the public and local IP address."""
+        try:
+            import socket
+            import requests
+            local_ip = socket.gethostbyname(socket.gethostname())
+            try:
+                public_ip = requests.get('https://api.ipify.org', timeout=5).text
+            except:
+                public_ip = "Unknown"
+            return f"Local IP: {local_ip} | Public IP: {public_ip}"
+        except Exception as e:
+            return f"Error getting IP: {e}"
+
+    def pc_power_action(self, action="sleep"):
+        """Control PC power: sleep, restart, shutdown. (Requires confirmation)"""
+        try:
+            if platform.system() == 'Windows':
+                if action == "sleep":
+                    os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
+                    return "Going to sleep..."
+                elif action == "restart":
+                    # os.system("shutdown /r /t 5")
+                    return "Restart initiated (currently disabled for safety)."
+                elif action == "shutdown":
+                    # os.system("shutdown /s /t 5")
+                    return "Shutdown initiated (currently disabled for safety)."
+            return f"Action {action} not supported or safely disabled."
+        except Exception as e:
+            return f"Power action error: {e}"
+
+
 import time

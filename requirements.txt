@@ -31,3 +31,6 @@ faster-whisper
 transformers
 torch
 torchaudio
+groq
+edge-tts
+speedtest-cli

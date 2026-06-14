@@ -295,6 +295,14 @@ SYSTEM_TOOLS:
   play_media(action)          → 'playpause', 'next', 'prev'
   lock_screen()               → Lock PC
   empty_recycle_bin()         → Clear trash
+  minimize_all_windows()      → Show desktop
+  close_current_window()      → Close active window (Alt+F4)
+  switch_window()             → Switch app (Alt+Tab)
+  open_system_settings(name)  → display, wifi, bluetooth, update, etc.
+  toggle_mute()               → Mute/unmute PC audio
+  check_internet_speed()      → Get download/upload speed
+  get_ip_address()            → Get local and public IP
+  pc_power_action(action)     → sleep, restart, shutdown
 
 SCREEN_TOOLS:
   take_screenshot()           → Capture screen
