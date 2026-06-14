@@ -101,7 +101,8 @@ def launch_anushka():
         venv_python = sys.executable
 
     # Launch Anushka in a new visible terminal window
-    cmd = f'start "✦ Anushka — Your AI Companion" cmd /k ""{venv_python}" "{script_dir / "jarvis_main.py"}" wake_word"'
+    # We use 'continuous' mode so she immediately listens to your command instead of waiting for a second wake word.
+    cmd = f'start "Anushka AI" cmd /k ""{venv_python}" "{script_dir / "jarvis_main.py"}" continuous"'
     anushka_process = subprocess.Popen(cmd, shell=True, cwd=str(script_dir))
     is_anushka_running = True
 
