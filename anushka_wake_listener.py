@@ -12,6 +12,14 @@ Run this script to start Anushka in always-listening mode:
 
 import os
 import sys
+
+# Force UTF-8 encoding for Windows terminals
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+
 import time
 import subprocess
 import threading

@@ -8,6 +8,14 @@ Run with: python jarvis_main.py [text|wake_word|continuous]
 
 import os
 import sys
+
+# Force UTF-8 encoding for Windows terminals to support emojis and symbols
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+
 import json
 import asyncio
 import datetime
