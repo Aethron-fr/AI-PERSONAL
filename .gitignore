@@ -1,0 +1,66 @@
+# ══════════════════════════════════════════════
+# ANUSHKA — .gitignore
+# Sensitive and local files — never upload these!
+# ══════════════════════════════════════════════
+
+# ── SECRET API KEYS (NEVER UPLOAD!) ──────────
+.env
+.env.*
+*.env
+secrets.py
+config_local.py
+
+# ── PERSONAL MEMORY (YOUR PRIVATE DATA) ──────
+anushka_memory/
+anushka_logs/
+memory/
+logs/
+
+# ── VIRTUAL ENVIRONMENT (TOO LARGE, NOT NEEDED)
+jarvis_env/
+venv/
+env/
+.venv/
+
+# ── PYTHON CACHE ──────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# ── TEST / TEMP AUDIO FILES ───────────────────
+anushka_test.mp3
+anushka_test_voice.mp3
+*.wav
+*.mp3
+*.tmp
+
+# ── SCREENSHOTS / CAMERA CAPTURES ────────────
+screenshot_*.png
+camera_*.jpg
+
+# ── IDE / EDITOR FILES ────────────────────────
+.vscode/
+.idea/
+*.suo
+*.user
+*.sublime-project
+*.sublime-workspace
+
+# ── WINDOWS SYSTEM FILES ──────────────────────
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ── PLAYWRIGHT BROWSER DATA ───────────────────
+playwright-browsers/
+
+# ── MISC ──────────────────────────────────────
+*.log
+*.bak
+*.swp
+*.DS_Store
