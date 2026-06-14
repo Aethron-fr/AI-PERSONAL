@@ -305,23 +305,55 @@ class AnushkaBrain:
         if len(self.history) > self.max_history:
             self.history = self.history[-self.max_history:]
 
-        try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    *self.history
-                ],
-                temperature=0.85,
-                max_tokens=1000,
-            )
-            reply = response.choices[0].message.content
-        except Exception as e:
-            reply = f"Hmm, I ran into a small issue: {e}. Check your API key in the .env file."
+        for _ in range(10): # ReAct Loop: Max 10 steps
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        *self.history
+                    ],
+                    temperature=0.7,
+                    max_tokens=1500,
+                )
+                reply = response.choices[0].message.content
+            except Exception as e:
+                reply = f"Hmm, I ran into a small issue: {e}. Check your API key in the .env file."
+                self.history.append({"role": "assistant", "content": reply})
+                self.memory.save_conversation("anushka", reply)
+                return reply
 
-        self.history.append({"role": "assistant", "content": reply})
-        self.memory.save_conversation("anushka", reply)
-        return reply
+            self.history.append({"role": "assistant", "content": reply})
+
+            # Detect Agentic Tool Call JSON
+            start_idx = reply.find('{')
+            end_idx = reply.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1 and '"tool"' in reply[start_idx:end_idx+1]:
+                try:
+                    call = json.loads(reply[start_idx:end_idx+1])
+                    if 'tool' in call:
+                        tool_name = call['tool']
+                        thought = call.get('thought', 'Analyzing...')
+                        console.print(f"[bold yellow]✦ Thinking:[/bold yellow] [dim]{thought}[/dim]")
+                        console.print(f"[bold cyan]✦ Action:[/bold cyan] [dim]Running {tool_name}...[/dim]")
+                        
+                        result = self.execute_tool(call)
+                        
+                        # Add observation back to the LLM and loop again
+                        observation = f"[OBSERVATION]\n{result}"
+                        self.history.append({"role": "user", "content": observation})
+                        continue
+                except json.JSONDecodeError:
+                    pass
+
+            # If we didn't loop (no valid tool call found), this is the final answer!
+            self.memory.save_conversation("anushka", reply)
+            return reply
+
+        final_msg = "I'm sorry, I've had to think about this too much and ran out of time. Let's try something else."
+        self.memory.save_conversation("anushka", final_msg)
+        return final_msg
 
     def execute_tool(self, tool_call: dict):
         from jarvis_tools import JarvisTools
@@ -406,24 +438,8 @@ class AnushkaAgent:
             self._show_help()
             return
 
-        # Pass to AI brain
+        # Pass to AI brain (Now fully Agentic and handles its own loops!)
         reply = self.brain.think(command)
-
-        # Check if it's a tool call JSON
-        stripped = reply.strip()
-        if stripped.startswith('{') and stripped.endswith('}'):
-            try:
-                call = json.loads(stripped)
-                if 'tool' in call:
-                    console.print(f"[dim]Using tool: {call['tool']}[/dim]")
-                    result = self.brain.execute_tool(call)
-                    speak_text = call.get('speak', str(result)[:200])
-                    console.print(f"[dim]Result: {result}[/dim]")
-                    self.voice.speak(speak_text)
-                    return
-            except json.JSONDecodeError:
-                pass
-
         self.voice.speak(reply)
 
     def run(self, mode: str = 'text'):
@@ -468,7 +484,7 @@ class AnushkaAgent:
                         self.voice.speak("Okay, shutting down. I will miss you. Goodbye!")
                         break
                     self.process(cmd)
-                except KeyboardInterrupt:
+                except (KeyboardInterrupt, EOFError):
                     self.voice.speak("Bye!")
                     break
 
