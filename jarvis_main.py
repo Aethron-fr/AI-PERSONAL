@@ -101,20 +101,22 @@ class AnushkaVoice:
 
 # ══════════════════════════════════════════════════════════════════
 # ANUSHKA EARS — Speech Recognition (FREE - Google STT)
+# Uses sounddevice to avoid PyAudio/PortAudio build errors on Windows
 # ══════════════════════════════════════════════════════════════════
 class AnushkaEars:
     def __init__(self):
         try:
             import speech_recognition as sr
+            import sounddevice as sd
+            import soundfile as sf
+            import numpy as np
             self.recognizer = sr.Recognizer()
-            self.microphone = sr.Microphone()
             self.sr = sr
-            console.print("[yellow]Calibrating microphone...[/yellow]")
-            with self.microphone as source:
-                self.recognizer.adjust_for_ambient_noise(source, duration=2)
-                self.recognizer.energy_threshold = 300
-                self.recognizer.dynamic_energy_threshold = True
-            console.print("[green]Microphone ready.[/green]")
+            self.sd = sd
+            self.sf = sf
+            self.np = np
+            self.temp_wav = str(Path(tempfile.gettempdir()) / "anushka_listen_buffer.wav")
+            console.print("[green]Microphone ready (sounddevice).[/green]")
             self.mic_available = True
         except Exception as e:
             console.print(f"[yellow]Mic unavailable: {e}[/yellow]")
@@ -123,31 +125,41 @@ class AnushkaEars:
     def listen_for_wake_word(self):
         if not self.mic_available:
             return False
-        with self.microphone as source:
-            try:
-                audio = self.recognizer.listen(source, timeout=5, phrase_time_limit=4)
-                text = self.recognizer.recognize_google(audio, language='en-IN').lower()
-                return 'anushka' in text
-            except:
+        try:
+            # Listen for 4 seconds
+            recording = self.sd.rec(int(4.0 * 16000), samplerate=16000, channels=1, dtype='int16')
+            self.sd.wait()
+            rms = self.np.sqrt(self.np.mean(self.np.square(recording.astype(self.np.float32))))
+            if rms < 100:
                 return False
+            self.sf.write(self.temp_wav, recording, 16000)
+            with self.sr.AudioFile(self.temp_wav) as source:
+                audio = self.recognizer.record(source)
+            text = self.recognizer.recognize_google(audio, language='en-IN').lower()
+            return 'anushka' in text
+        except:
+            return False
 
     def listen_command(self):
         if not self.mic_available:
             return None
-        console.print("[yellow]Listening...[/yellow]")
-        with self.microphone as source:
-            try:
-                audio = self.recognizer.listen(source, timeout=10, phrase_time_limit=30)
-                text = self.recognizer.recognize_google(audio, language='en-IN')
-                console.print(f"[bold green]You:[/bold green] {text}")
-                return text
-            except self.sr.WaitTimeoutError:
+        console.print("[yellow]Listening... (speak for up to 6 seconds)[/yellow]")
+        try:
+            recording = self.sd.rec(int(6.0 * 16000), samplerate=16000, channels=1, dtype='int16')
+            self.sd.wait()
+            rms = self.np.sqrt(self.np.mean(self.np.square(recording.astype(self.np.float32))))
+            if rms < 100:
                 return None
-            except self.sr.UnknownValueError:
-                return None
-            except Exception as e:
+            self.sf.write(self.temp_wav, recording, 16000)
+            with self.sr.AudioFile(self.temp_wav) as source:
+                audio = self.recognizer.record(source)
+            text = self.recognizer.recognize_google(audio, language='en-IN')
+            console.print(f"[bold green]You:[/bold green] {text}")
+            return text
+        except Exception as e:
+            if "UnknownValueError" not in str(type(e)):
                 console.print(f"[red]Mic error: {e}[/red]")
-                return None
+            return None
 
 
 # ══════════════════════════════════════════════════════════════════

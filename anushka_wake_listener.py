@@ -111,18 +111,19 @@ def launch_anushka():
 def listen_for_wake_word():
     """
     Continuously listen in the background for the wake word.
-    Uses minimal resources — only processes audio when speech is detected.
+    Uses sounddevice instead of PyAudio for better compatibility on Windows.
     """
     try:
         import speech_recognition as sr
+        import sounddevice as sd
+        import soundfile as sf
+        import tempfile
+        import numpy as np
     except ImportError:
-        print("❌ speech_recognition not installed. Run: pip install speechrecognition")
+        print("❌ Missing packages. Run: pip install speechrecognition sounddevice soundfile numpy")
         sys.exit(1)
 
     recognizer = sr.Recognizer()
-    recognizer.energy_threshold = 300
-    recognizer.dynamic_energy_threshold = True
-    recognizer.pause_threshold = 0.6
 
     print("\n╔══════════════════════════════════════════════╗")
     print("║  ✦ ANUSHKA Wake Listener — Active           ║")
@@ -132,20 +133,37 @@ def listen_for_wake_word():
     print("\nListening in background... (minimal CPU usage)")
 
     consecutive_errors = 0
+    temp_wav = Path(tempfile.gettempdir()) / "anushka_wake_buffer.wav"
+    
+    # Recording parameters
+    samplerate = 16000
+    duration = 4.0 # Listen in 4-second chunks
+    channels = 1
 
     while True:
         try:
-            with sr.Microphone() as source:
-                if consecutive_errors == 0:
-                    recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            # 1. Record audio via sounddevice (no PyAudio needed)
+            recording = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+            sd.wait() # Wait until recording is finished
+            
+            # Check if there is actual sound (skip total silence to save API calls)
+            # A simple RMS energy check
+            rms = np.sqrt(np.mean(np.square(recording.astype(np.float32))))
+            if rms < 100: # Adjust threshold if needed
+                continue
 
-                # Listen with short timeout to keep it lightweight
-                audio = recognizer.listen(source, timeout=3, phrase_time_limit=4)
+            # 2. Save to temporary WAV file
+            sf.write(str(temp_wav), recording, samplerate)
 
-            # Try to recognize speech
+            # 3. Read via speech_recognition's AudioFile
+            with sr.AudioFile(str(temp_wav)) as source:
+                audio = recognizer.record(source)
+
+            # 4. Try to recognize speech
             try:
                 text = recognizer.recognize_google(audio, language='en-IN').lower().strip()
-                print(f"   Heard: '{text}'")
+                if text:
+                    print(f"   Heard: '{text}'")
 
                 # Check if any wake phrase was said
                 for phrase in WAKE_PHRASES:
@@ -158,24 +176,20 @@ def listen_for_wake_word():
                 consecutive_errors = 0
 
             except sr.UnknownValueError:
-                # Normal — couldn't understand audio (silence, noise)
+                # Normal — couldn't understand audio
                 consecutive_errors = 0
-                pass
             except sr.RequestError as e:
                 print(f"   ⚠️ Recognition error: {e}")
                 consecutive_errors += 1
                 time.sleep(2)
 
-        except sr.WaitTimeoutError:
-            # Normal — no speech detected in timeout window
-            consecutive_errors = 0
-            pass
-        except OSError:
-            print("   ⚠️ Microphone not accessible. Retrying in 5s...")
-            time.sleep(5)
-            consecutive_errors += 1
         except KeyboardInterrupt:
             print("\n\n💤 Wake listener stopped. Goodbye!")
+            try:
+                if temp_wav.exists():
+                    temp_wav.unlink()
+            except:
+                pass
             break
         except Exception as e:
             print(f"   Error: {e}")
