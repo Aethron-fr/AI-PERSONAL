@@ -48,9 +48,9 @@ Then open `.env` and add your **free Groq API key** from [console.groq.com](http
 
 ### 5. Start Anushka!
 ```bash
-python jarvis_main.py text         # Text mode
-python jarvis_main.py wake_word    # Voice mode (say "Hey Anushka")
-python jarvis_main.py continuous   # Always-listening mode
+python anushka_main.py text         # Text mode
+python anushka_main.py wake_word    # Voice mode (say "Hey Anushka")
+python anushka_main.py continuous   # Always-listening mode
 ```
 
 Or just **double-click** `start_anushka.bat`!
@@ -61,10 +61,10 @@ Or just **double-click** `start_anushka.bat`!
 
 ```
 AI-ANUSHKA/
-├── jarvis_main.py            # Main agent — voice, brain, memory
-├── jarvis_brain.py           # Deep knowledge system prompt
-├── jarvis_tools.py           # 30+ tools (files, web, vision, system)
-├── jarvis_training.py        # Personal knowledge base
+├── anushka_main.py            # Main agent — voice, brain, memory
+├── anushka_brain.py           # Deep knowledge system prompt
+├── anushka_tools.py           # 30+ tools (files, web, vision, system)
+├── anushka_training.py        # Personal knowledge base
 ├── anushka_wake_listener.py  # Background wake word listener
 ├── requirements.txt          # Python dependencies
 ├── .env.example              # API key template (copy to .env)

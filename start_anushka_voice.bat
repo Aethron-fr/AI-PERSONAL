@@ -8,4 +8,4 @@ echo.
 
 cd /d "%~dp0"
 call jarvis_env\Scripts\activate.bat
-python jarvis_main.py wake_word
+python anushka_main.py wake_word

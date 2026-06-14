@@ -8,4 +8,4 @@ echo.
 
 cd /d "%~dp0"
 call jarvis_env\Scripts\activate.bat
-python jarvis_main.py text
+python anushka_main.py text

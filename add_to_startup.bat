@@ -6,17 +6,17 @@ echo   She will start automatically at boot!
 echo  ============================================
 echo.
 
-set JARVIS_DIR=%~dp0
+set ANUSHKA_DIR=%~dp0
 set STARTUP_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup
 set VBS_FILE=%STARTUP_DIR%\anushka_wake.vbs
-set BAT_FILE=%JARVIS_DIR%start_wake_listener.bat
+set BAT_FILE=%ANUSHKA_DIR%start_wake_listener.bat
 
 echo Creating hidden startup script...
 
 rem Write a VBScript that runs the wake listener silently (no CMD window flashing)
 (
 echo Set WshShell = CreateObject("WScript.Shell"^)
-echo WshShell.CurrentDirectory = "%JARVIS_DIR%"
+echo WshShell.CurrentDirectory = "%ANUSHKA_DIR%"
 echo WshShell.Run """%BAT_FILE%""", 1, False
 ) > "%VBS_FILE%"
 

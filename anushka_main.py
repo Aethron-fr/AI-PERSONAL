@@ -3,7 +3,7 @@
 ANUSHKA — Your Personal AI Companion
 100% FREE Version — Groq (LLaMA 3) + Microsoft Edge TTS
 No OpenAI credits needed!
-Run with: python jarvis_main.py [text|wake_word|continuous]
+Run with: python anushka_main.py [text|wake_word|continuous]
 """
 
 import os
@@ -256,7 +256,7 @@ class AnushkaTaskManager:
 # ══════════════════════════════════════════════════════════════════
 class AnushkaBrain:
     def __init__(self, memory: AnushkaMemory):
-        from jarvis_brain import ANUSHKA_MASTER_SYSTEM_PROMPT
+        from anushka_brain import ANUSHKA_MASTER_SYSTEM_PROMPT
         self.system_prompt = ANUSHKA_MASTER_SYSTEM_PROMPT
         self.history = []
         self.memory = memory
@@ -369,8 +369,8 @@ class AnushkaBrain:
         return final_msg
 
     def execute_tool(self, tool_call: dict):
-        from jarvis_tools import JarvisTools
-        tools = JarvisTools()
+        from anushka_tools import AnushkaTools
+        tools = AnushkaTools()
         name = tool_call.get('tool')
         params = tool_call.get('parameters', {})
         if hasattr(tools, name):

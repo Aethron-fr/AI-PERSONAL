@@ -14,8 +14,8 @@ import psutil
 from pathlib import Path
 
 
-class JarvisTools:
-    """All tools available to ANUSHKA. Named JarvisTools for backward compatibility."""
+class AnushkaTools:
+    """All tools available to ANUSHKA. Named AnushkaTools for backward compatibility."""
 
     # ─── SYSTEM TOOLS ─────────────────────────────────────────────
 
