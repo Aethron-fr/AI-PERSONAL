@@ -1,31 +1,23 @@
 """
-ANUSHKA Voice — Text to Speech Engine
+ANUSHKA Voice — Text to Speech Engine using gTTS and pygame
 """
 
 import threading
 import re
-
+import os
+import tempfile
+import time
 
 class AnushkaVoice:
     def __init__(self):
         self.enabled = True
-        self.engine = None
         self._speaking = False
         self._setup()
 
     def _setup(self):
         try:
-            import pyttsx3
-            self.engine = pyttsx3.init()
-            self.engine.setProperty('rate', 168)
-            self.engine.setProperty('volume', 1.0)
-            voices = self.engine.getProperty('voices')
-            # Prefer female voice
-            female_keywords = ['zira', 'hazel', 'female', 'woman', 'girl', 'susan', 'eva']
-            for v in voices:
-                if any(k in v.name.lower() for k in female_keywords):
-                    self.engine.setProperty('voice', v.id)
-                    break
+            import pygame
+            pygame.mixer.init()
         except Exception as e:
             print(f"Voice init note: {e}")
             self.enabled = False
@@ -41,17 +33,44 @@ class AnushkaVoice:
         return text[:500]  # Max 500 chars for speech
 
     def speak(self, text):
-        if not self.enabled or not self.engine:
+        if not self.enabled:
             return
         clean = self._clean_for_speech(text)
         if not clean:
             return
+        
+        self._speaking = True
         try:
-            self._speaking = True
-            self.engine.say(clean)
-            self.engine.runAndWait()
-            self._speaking = False
+            from gtts import gTTS
+            import pygame
+            
+            # Generate speech
+            tts = gTTS(text=clean, lang='en', slow=False)
+            
+            # Create a temporary file
+            fd, tmp_path = tempfile.mkstemp(suffix='.mp3')
+            os.close(fd)
+            
+            tts.save(tmp_path)
+            
+            # Play with pygame
+            pygame.mixer.music.load(tmp_path)
+            pygame.mixer.music.play()
+            
+            # Wait for playback to finish
+            while pygame.mixer.music.get_busy():
+                time.sleep(0.1)
+                
+            # Cleanup
+            pygame.mixer.music.unload()
+            try:
+                os.remove(tmp_path)
+            except:
+                pass
+                
         except Exception as e:
+            print(f"Speech error: {e}")
+        finally:
             self._speaking = False
 
     def speak_async(self, text):

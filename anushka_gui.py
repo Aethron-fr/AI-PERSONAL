@@ -339,6 +339,10 @@ class AnushkaGUI:
     def _set_status(self, text, color):
         self.status_dot.config(text=text, fg=color)
 
+    def send_proactive(self, text):
+        self.root.after(0, lambda: self._add_bubble(text, "anushka"))
+        self.voice.speak_async(text)
+
     # ── Startup Greeting ───────────────────────────
 
     def _startup_greeting(self):

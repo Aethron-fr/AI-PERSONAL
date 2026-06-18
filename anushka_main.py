@@ -24,6 +24,8 @@ def main():
         from anushka_voice import AnushkaVoice
         from anushka_tools import AnushkaTools
         from anushka_gui import AnushkaGUI
+        from anushka_vision import AnushkaVision
+        from anushka_chronos import AnushkaChronos
     except ImportError as e:
         print(f"Failed to import core modules: {e}")
         print("Please ensure you are in the correct directory.")
@@ -35,10 +37,22 @@ def main():
     voice = AnushkaVoice()
     tools = AnushkaTools()
 
-    # Initialize and run the GUI
+    # Start the Biometric Vision thread
+    vision = AnushkaVision(brain)
+
+    # Initialize the GUI
     print("Launching ANUSHKA GUI...")
     app = AnushkaGUI(brain=brain, voice=voice, tools=tools)
+
+    # Start the Proactive Chronos thread (needs the GUI reference)
+    chronos = AnushkaChronos(brain, app)
+
+    # Run the main loop
     app.run()
+
+    # Cleanup when GUI closes
+    vision.stop()
+    chronos.stop()
 
 if __name__ == "__main__":
     main()
