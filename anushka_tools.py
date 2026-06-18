@@ -4,18 +4,20 @@ Complete toolkit: system, screen, web, vision, schedule, communication
 """
 
 import os
+import time  # ← Fixed: must be at top, was incorrectly at bottom
 import subprocess
 import platform
 import datetime
 import json
 import webbrowser
+import threading
 import pyperclip
 import psutil
 from pathlib import Path
 
 
 class AnushkaTools:
-    """All tools available to ANUSHKA. Named AnushkaTools for backward compatibility."""
+    """All tools available to ANUSHKA."""
 
     # ─── SYSTEM TOOLS ─────────────────────────────────────────────
 
@@ -52,7 +54,6 @@ class AnushkaTools:
         try:
             path = os.path.expanduser(path)
             content = Path(path).read_text(encoding='utf-8')
-            # Limit to first 3000 chars to avoid context overflow
             return content[:3000] + ("\n...[truncated]" if len(content) > 3000 else "")
         except Exception as e:
             return f"Could not read file: {e}"
@@ -96,9 +97,7 @@ class AnushkaTools:
                     size = item.stat().st_size
                     size_str = f"{size // 1024}KB" if size > 1024 else f"{size}B"
                     output.append(f"📄 {item.name} ({size_str})")
-            if len(list(Path(path).iterdir())) > 40:
-                output.append("... and more items")
-            return '\n'.join(output)
+            return '\n'.join(output) if output else "Empty directory."
         except Exception as e:
             return f"Directory error: {e}"
 
@@ -113,7 +112,6 @@ class AnushkaTools:
                 'cpu_usage': f"{cpu}%",
                 'ram_total': f"{ram.total // (1024**3)} GB",
                 'ram_used': f"{ram.percent}% ({ram.used // (1024**3)} GB)",
-                'ram_free': f"{ram.available // (1024**3)} GB",
                 'disk_total': f"{disk.total // (1024**3)} GB",
                 'disk_used': f"{disk.percent}%",
                 'disk_free': f"{disk.free // (1024**3)} GB",
@@ -130,7 +128,7 @@ class AnushkaTools:
     def copy_to_clipboard(self, text):
         """Copy text to the system clipboard."""
         try:
-            pyperclip.copy(text)
+            pyperclip.copy(str(text))
             return "Copied to clipboard."
         except Exception as e:
             return f"Clipboard error: {e}"
@@ -141,6 +139,62 @@ class AnushkaTools:
             return pyperclip.paste()
         except Exception as e:
             return f"Could not get clipboard: {e}"
+
+    # ─── MEMORY TOOLS (called by the AI agent) ────────────────────
+    # These proxy to the memory file directly so the AI can save/recall
+
+    def save_memory(self, key, value):
+        """Save a key-value pair to Anushka's persistent memory."""
+        try:
+            mem_path = Path(os.getenv('ANUSHKA_MEMORY_PATH', './anushka_memory')) / 'memory.json'
+            data = {}
+            if mem_path.exists():
+                data = json.loads(mem_path.read_text(encoding='utf-8'))
+            data[str(key)] = {'value': str(value), 'time': datetime.datetime.now().isoformat()}
+            mem_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+            return f"Memory saved: {key} = {value}"
+        except Exception as e:
+            return f"Memory save error: {e}"
+
+    def recall_memory(self, key):
+        """Recall a specific memory by key."""
+        try:
+            mem_path = Path(os.getenv('ANUSHKA_MEMORY_PATH', './anushka_memory')) / 'memory.json'
+            if not mem_path.exists():
+                return "No memory file found."
+            data = json.loads(mem_path.read_text(encoding='utf-8'))
+            entry = data.get(str(key))
+            return entry['value'] if entry else f"No memory found for key: {key}"
+        except Exception as e:
+            return f"Memory recall error: {e}"
+
+    def list_all(self):
+        """List all memories Anushka has stored."""
+        try:
+            mem_path = Path(os.getenv('ANUSHKA_MEMORY_PATH', './anushka_memory')) / 'memory.json'
+            if not mem_path.exists():
+                return "No memories stored yet."
+            data = json.loads(mem_path.read_text(encoding='utf-8'))
+            if not data:
+                return "No memories stored yet."
+            return '\n'.join([f"• {k}: {v.get('value','')}" for k, v in list(data.items())[-20:]])
+        except Exception as e:
+            return f"Memory list error: {e}"
+
+    def delete(self, key):
+        """Delete a memory by key."""
+        try:
+            mem_path = Path(os.getenv('ANUSHKA_MEMORY_PATH', './anushka_memory')) / 'memory.json'
+            if not mem_path.exists():
+                return "No memory file found."
+            data = json.loads(mem_path.read_text(encoding='utf-8'))
+            if str(key) in data:
+                del data[str(key)]
+                mem_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+                return f"Deleted memory: {key}"
+            return f"Key '{key}' not found in memory."
+        except Exception as e:
+            return f"Memory delete error: {e}"
 
     # ─── SCREEN TOOLS ─────────────────────────────────────────────
 
@@ -168,7 +222,7 @@ class AnushkaTools:
         """Type text using the keyboard at the current cursor position."""
         try:
             import pyautogui
-            pyautogui.write(text, interval=0.03)
+            pyautogui.write(str(text), interval=0.03)
             return f"Typed: {text}"
         except Exception as e:
             return f"Type error: {e}"
@@ -177,7 +231,7 @@ class AnushkaTools:
         """Press a key or keyboard shortcut. Use + for combos (e.g. ctrl+c)."""
         try:
             import pyautogui
-            keys = key.split('+')
+            keys = str(key).split('+')
             pyautogui.hotkey(*keys)
             return f"Pressed: {key}"
         except Exception as e:
@@ -187,7 +241,7 @@ class AnushkaTools:
         """Scroll up or down on screen."""
         try:
             import pyautogui
-            amount = clicks if direction == 'up' else -clicks
+            amount = int(clicks) if direction == 'up' else -int(clicks)
             pyautogui.scroll(amount)
             return f"Scrolled {direction} by {clicks}"
         except Exception as e:
@@ -198,12 +252,13 @@ class AnushkaTools:
     def web_search(self, query):
         """Open a Google search for the given query in the browser."""
         import urllib.parse
-        url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+        url = f"https://www.google.com/search?q={urllib.parse.quote(str(query))}"
         webbrowser.open(url)
         return f"Opened Google search for: {query}"
 
     def open_url(self, url):
         """Open a URL in the default browser."""
+        url = str(url)
         if not url.startswith('http'):
             url = 'https://' + url
         webbrowser.open(url)
@@ -211,14 +266,13 @@ class AnushkaTools:
 
     def get_page_content(self, url):
         """Fetch and return the text content of a webpage."""
-        import requests
-        from bs4 import BeautifulSoup
         try:
-            r = requests.get(url, timeout=15, headers={
+            import requests
+            from bs4 import BeautifulSoup
+            r = requests.get(str(url), timeout=15, headers={
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             })
             soup = BeautifulSoup(r.text, 'html.parser')
-            # Remove scripts, styles, nav, footers
             for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
                 tag.decompose()
             paragraphs = [p.get_text(strip=True) for p in soup.find_all(['p', 'h1', 'h2', 'h3', 'li'])
@@ -231,16 +285,43 @@ class AnushkaTools:
     def search_youtube(self, query):
         """Open YouTube search."""
         import urllib.parse
-        url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(query)}"
+        url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(str(query))}"
         webbrowser.open(url)
         return f"Opened YouTube search: {query}"
 
     def open_wikipedia(self, topic):
         """Open Wikipedia for a topic."""
         import urllib.parse
-        url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(topic.replace(' ', '_'))}"
+        url = f"https://en.wikipedia.org/wiki/{urllib.parse.quote(str(topic).replace(' ', '_'))}"
         webbrowser.open(url)
         return f"Opened Wikipedia: {topic}"
+
+    def play_song_on_youtube(self, song_name):
+        """Search and play a song on YouTube."""
+        import urllib.parse
+        url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(str(song_name))}"
+        webbrowser.open(url)
+        return f"Searching YouTube for: {song_name}"
+
+    def tell_joke(self):
+        """Fetch a random joke."""
+        try:
+            import requests
+            r = requests.get('https://v2.jokeapi.dev/joke/Any?safe-mode', timeout=5)
+            data = r.json()
+            if data['type'] == 'single':
+                return data['joke']
+            else:
+                return f"{data['setup']} ... {data['delivery']}"
+        except Exception:
+            return "Why did the AI cross the road? To optimize the path on the other side!"
+
+    def get_news(self, topic="technology"):
+        """Open Google News for a topic."""
+        import urllib.parse
+        url = f"https://news.google.com/search?q={urllib.parse.quote(str(topic))}"
+        webbrowser.open(url)
+        return f"Opened Google News for: {topic}"
 
     # ─── VISION TOOLS ─────────────────────────────────────────────
 
@@ -261,7 +342,7 @@ class AnushkaTools:
             return f"Camera error: {e}"
 
     def analyze_image(self, image_path):
-        """Send an image to GPT-4o Vision and get a detailed description."""
+        """Analyze an image using AI vision."""
         try:
             import base64
             from openai import OpenAI
@@ -276,7 +357,7 @@ class AnushkaTools:
                     {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
                     {"type": "text", "text": "Analyze this image thoroughly. Describe everything you see."}
                 ]}],
-                max_tokens=1000
+                max_tokens=500
             )
             return response.choices[0].message.content
         except Exception as e:
@@ -310,27 +391,23 @@ class AnushkaTools:
 
     def set_reminder(self, minutes, message):
         """Set a reminder that fires after N minutes."""
-        import threading
         def remind():
-            import time
             time.sleep(int(minutes) * 60)
-            print(f"\n⏰ ANUSHKA REMINDER: {message}")
             if platform.system() == 'Windows':
                 import ctypes
                 ctypes.windll.user32.MessageBoxW(0, f"⏰ {message}", "ANUSHKA Reminder", 0x40)
         t = threading.Thread(target=remind, daemon=True)
         t.start()
-        return f"Reminder set for {minutes} minute(s) from now: '{message}'"
+        return f"Reminder set for {minutes} minute(s): '{message}'"
 
     def get_weather(self, city="Kolkata"):
-        """Fetch current weather for a city using OpenWeatherMap."""
-        import requests
-        key = os.getenv('WEATHER_API_KEY', '')
-        if not key or key == 'your-openweathermap-key-here':
-            # Fallback: open weather website
-            self.open_url(f"https://wttr.in/{city.replace(' ', '+')}")
-            return f"Opened weather for {city} in browser (no API key configured)."
+        """Fetch current weather for a city."""
         try:
+            import requests
+            key = os.getenv('WEATHER_API_KEY', '')
+            if not key or 'your-' in key:
+                self.open_url(f"https://wttr.in/{city.replace(' ', '+')}")
+                return f"Opened weather for {city} in browser."
             r = requests.get(
                 "http://api.openweathermap.org/data/2.5/weather",
                 params={"q": city, "appid": key, "units": "metric"},
@@ -339,84 +416,38 @@ class AnushkaTools:
             d = r.json()
             if d.get('cod') == 200:
                 temp = d['main']['temp']
-                feels_like = d['main']['feels_like']
                 desc = d['weather'][0]['description']
                 humidity = d['main']['humidity']
-                wind = d['wind']['speed']
-                return (f"{city}: {temp:.1f}°C (feels like {feels_like:.1f}°C), "
-                        f"{desc}, humidity {humidity}%, wind {wind} m/s")
-            return f"Could not get weather for {city}: {d.get('message', 'Unknown error')}"
+                return f"{city}: {temp:.1f}°C, {desc}, humidity {humidity}%"
+            return f"Could not get weather for {city}."
         except Exception as e:
             return f"Weather error: {e}"
 
-    def get_news(self, topic="technology"):
-        """Open Google News for a topic."""
-        import urllib.parse
-        url = f"https://news.google.com/search?q={urllib.parse.quote(topic)}"
-        webbrowser.open(url)
-        return f"Opened Google News for: {topic}"
-
-    # ─── COMMUNICATION TOOLS ──────────────────────────────────────
-
-    def send_notification(self, message, title="ANUSHKA"):
-        """Send a desktop notification."""
-        try:
-            if platform.system() == 'Windows':
-                import ctypes
-                ctypes.windll.user32.MessageBoxW(0, message, f"🤖 {title}", 0x40)
-            elif platform.system() == 'Darwin':
-                os.system(f'osascript -e \'display notification "{message}" with title "{title}"\'')
-            else:
-                os.system(f'notify-send "{title}" "{message}"')
-            return f"Notification sent: {message}"
-        except Exception as e:
-            return f"Notification error: {e}"
+    # ─── SYSTEM CONTROL TOOLS ─────────────────────────────────────
 
     def open_application(self, app_name):
         """Open a common application by name."""
         apps = {
-            'vscode': 'code',
-            'vs code': 'code',
-            'notepad': 'notepad',
-            'chrome': 'chrome',
-            'google chrome': 'chrome',
-            'firefox': 'firefox',
-            'calculator': 'calc',
-            'paint': 'mspaint',
-            'explorer': 'explorer',
-            'file explorer': 'explorer',
-            'task manager': 'taskmgr',
-            'cmd': 'cmd',
-            'powershell': 'powershell',
-            'spotify': 'spotify',
+            'vscode': 'code', 'vs code': 'code', 'notepad': 'notepad',
+            'chrome': 'chrome', 'google chrome': 'chrome', 'firefox': 'firefox',
+            'calculator': 'calc', 'paint': 'mspaint', 'explorer': 'explorer',
+            'file explorer': 'explorer', 'task manager': 'taskmgr',
+            'cmd': 'cmd', 'powershell': 'powershell', 'spotify': 'spotify',
             'discord': 'discord',
-            'word': 'winword',
-            'excel': 'excel',
-            'powerpoint': 'powerpnt',
         }
-        name_lower = app_name.lower()
-        cmd = apps.get(name_lower, app_name)
+        cmd = apps.get(str(app_name).lower(), str(app_name))
         return self.run_command(f'start {cmd}')
 
-    # ─── HUMAN-LIKE & ADVANCED SYSTEM TOOLS ───────────────────────
-
     def set_volume(self, level):
-        """Set system volume (0 to 100). Windows only."""
+        """Set system volume (0 to 100)."""
         try:
-            if platform.system() == 'Windows':
-                # Using PowerShell to set volume via NirCmd or built-in audio objects is complex,
-                # but we can simulate volume up/down keypresses.
-                # A simpler approach using SoundVolumeView or pycaw.
-                # Let's use PyAutoGUI to just press VolumeUp/VolumeDown.
-                import pyautogui
-                # Reset to 0 then go up
-                for _ in range(50):
-                    pyautogui.press('volumedown')
-                target = int(level) // 2
-                for _ in range(target):
-                    pyautogui.press('volumeup')
-                return f"Volume set to approximately {level}%"
-            return "Volume control is currently supported on Windows."
+            import pyautogui
+            for _ in range(50):
+                pyautogui.press('volumedown')
+            target = int(level) // 2
+            for _ in range(target):
+                pyautogui.press('volumeup')
+            return f"Volume set to approximately {level}%"
         except Exception as e:
             return f"Volume error: {e}"
 
@@ -424,36 +455,14 @@ class AnushkaTools:
         """Control media: playpause, nexttrack, prevtrack."""
         try:
             import pyautogui
-            if action in ['play', 'pause', 'playpause']:
-                pyautogui.press('playpause')
-                return "Toggled play/pause."
-            elif action in ['next', 'nexttrack']:
-                pyautogui.press('nexttrack')
-                return "Playing next track."
-            elif action in ['prev', 'prevtrack']:
-                pyautogui.press('prevtrack')
-                return "Playing previous track."
-            return "Unknown media action."
+            key_map = {'play': 'playpause', 'pause': 'playpause', 'playpause': 'playpause',
+                       'next': 'nexttrack', 'nexttrack': 'nexttrack',
+                       'prev': 'prevtrack', 'prevtrack': 'prevtrack'}
+            key = key_map.get(str(action), 'playpause')
+            pyautogui.press(key)
+            return f"Media: {action}"
         except Exception as e:
             return f"Media control error: {e}"
-
-    def play_song_on_youtube(self, song_name):
-        """Search and instantly play a song on YouTube."""
-        try:
-            import urllib.parse
-            url = f"https://www.youtube.com/results?search_query={urllib.parse.quote(song_name)}"
-            webbrowser.open(url)
-            import time
-            time.sleep(3) # Wait for page to load
-            import pyautogui
-            # Click the first video (approximate center of screen, a bit down)
-            # Or better, just press Tab and Enter a few times to select the first video
-            for _ in range(3):
-                pyautogui.press('tab')
-            pyautogui.press('enter')
-            return f"Playing {song_name} on YouTube!"
-        except Exception as e:
-            return f"Could not play song: {e}"
 
     def lock_screen(self):
         """Lock the computer screen."""
@@ -461,9 +470,6 @@ class AnushkaTools:
             if platform.system() == 'Windows':
                 import ctypes
                 ctypes.windll.user32.LockWorkStation()
-                return "Screen locked."
-            elif platform.system() == 'Darwin':
-                os.system('pmset displaysleepnow')
                 return "Screen locked."
             return "Lock screen not supported on this OS."
         except Exception as e:
@@ -474,73 +480,49 @@ class AnushkaTools:
         try:
             if platform.system() == 'Windows':
                 import ctypes
-                SHEmptyRecycleBin = ctypes.windll.shell32.SHEmptyRecycleBinW
-                result = SHEmptyRecycleBin(None, None, 7) # 7 = No confirmation, no progress UI, no sound
-                if result == 0:
-                    return "Recycle bin emptied."
-                return "Recycle bin was already empty or could not be emptied."
+                result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 7)
+                return "Recycle bin emptied." if result == 0 else "Recycle bin already empty."
             return "Only supported on Windows."
         except Exception as e:
             return f"Recycle bin error: {e}"
 
-    def tell_joke(self):
-        """Fetch a random joke."""
-        import requests
-        try:
-            r = requests.get('https://v2.jokeapi.dev/joke/Any?safe-mode')
-            data = r.json()
-            if data['type'] == 'single':
-                return data['joke']
-            else:
-                return f"{data['setup']} ... {data['delivery']}"
-        except Exception:
-            return "Why did the AI cross the road? To optimize the path on the other side! (Sorry, my joke API is down)."
-
-    # ─── ULTIMATE PC CONTROL TOOLS ────────────────────────────────
-
     def minimize_all_windows(self):
-        """Minimize all open windows (Show Desktop)."""
+        """Minimize all open windows."""
         try:
             import pyautogui
             pyautogui.hotkey('win', 'd')
-            return "Minimized all windows (Show Desktop)."
+            return "Minimized all windows."
         except Exception as e:
-            return f"Error minimizing windows: {e}"
+            return f"Error: {e}"
 
     def close_current_window(self):
-        """Close the currently active window (Alt+F4)."""
+        """Close the currently active window."""
         try:
             import pyautogui
             pyautogui.hotkey('alt', 'f4')
             return "Closed current window."
         except Exception as e:
-            return f"Error closing window: {e}"
+            return f"Error: {e}"
 
     def switch_window(self):
-        """Switch to the previous window (Alt+Tab)."""
+        """Switch to the previous window."""
         try:
             import pyautogui
             pyautogui.hotkey('alt', 'tab')
             return "Switched window."
         except Exception as e:
-            return f"Error switching window: {e}"
+            return f"Error: {e}"
 
     def open_system_settings(self, setting_name=""):
-        """Open Windows settings (e.g. 'display', 'bluetooth', 'wifi', or empty for main)."""
-        try:
-            setting_map = {
-                'display': 'ms-settings:display',
-                'bluetooth': 'ms-settings:bluetooth',
-                'wifi': 'ms-settings:network-wifi',
-                'network': 'ms-settings:network-status',
-                'sound': 'ms-settings:sound',
-                'update': 'ms-settings:windowsupdate',
-            }
-            target = setting_map.get(setting_name.lower(), 'ms-settings:')
-            self.run_command(f'start {target}')
-            return f"Opened {setting_name if setting_name else 'system'} settings."
-        except Exception as e:
-            return f"Error opening settings: {e}"
+        """Open Windows system settings."""
+        setting_map = {
+            'display': 'ms-settings:display', 'bluetooth': 'ms-settings:bluetooth',
+            'wifi': 'ms-settings:network-wifi', 'network': 'ms-settings:network-status',
+            'sound': 'ms-settings:sound', 'update': 'ms-settings:windowsupdate',
+        }
+        target = setting_map.get(str(setting_name).lower(), 'ms-settings:')
+        self.run_command(f'start {target}')
+        return f"Opened {setting_name or 'system'} settings."
 
     def toggle_mute(self):
         """Mute or unmute the system volume."""
@@ -560,8 +542,6 @@ class AnushkaTools:
             download = st.download() / 1024 / 1024
             upload = st.upload() / 1024 / 1024
             return f"Download: {download:.2f} Mbps | Upload: {upload:.2f} Mbps"
-        except ImportError:
-            return "Speedtest-cli module not installed. Run: pip install speedtest-cli"
         except Exception as e:
             return f"Speed test error: {e}"
 
@@ -580,21 +560,24 @@ class AnushkaTools:
             return f"Error getting IP: {e}"
 
     def pc_power_action(self, action="sleep"):
-        """Control PC power: sleep, restart, shutdown. (Requires confirmation)"""
+        """Control PC power: sleep, restart, shutdown."""
         try:
             if platform.system() == 'Windows':
                 if action == "sleep":
                     os.system("rundll32.exe powrprof.dll,SetSuspendState 0,1,0")
                     return "Going to sleep..."
-                elif action == "restart":
-                    # os.system("shutdown /r /t 5")
-                    return "Restart initiated (currently disabled for safety)."
-                elif action == "shutdown":
-                    # os.system("shutdown /s /t 5")
-                    return "Shutdown initiated (currently disabled for safety)."
-            return f"Action {action} not supported or safely disabled."
+                elif action in ("restart", "shutdown"):
+                    return f"{action.capitalize()} is disabled for safety."
+            return f"Action '{action}' not supported."
         except Exception as e:
             return f"Power action error: {e}"
 
-
-import time
+    def send_notification(self, message, title="ANUSHKA"):
+        """Send a desktop notification."""
+        try:
+            if platform.system() == 'Windows':
+                import ctypes
+                ctypes.windll.user32.MessageBoxW(0, str(message), f"🤖 {title}", 0x40)
+            return f"Notification sent: {message}"
+        except Exception as e:
+            return f"Notification error: {e}"
