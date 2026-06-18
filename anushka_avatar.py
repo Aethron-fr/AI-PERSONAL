@@ -151,7 +151,7 @@ class AnushkaAvatar:
     def close(self):
         self.running = False
         try:
-            if self.window:
+            if self.window and self.window.winfo_exists():
                 self.window.destroy()
         except Exception:
-            pass
+            pass  # Ignore TclError if root is already destroyed
