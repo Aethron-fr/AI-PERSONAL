@@ -26,6 +26,7 @@ def main():
         from anushka_gui import AnushkaGUI
         from anushka_vision import AnushkaVision
         from anushka_chronos import AnushkaChronos
+        from anushka_avatar import AnushkaAvatar
     except ImportError as e:
         print(f"Failed to import core modules: {e}")
         print("Please ensure you are in the correct directory.")
@@ -44,6 +45,10 @@ def main():
     print("Launching ANUSHKA GUI...")
     app = AnushkaGUI(brain=brain, voice=voice, tools=tools)
 
+    # Start the Live Avatar Overlay
+    avatar = AnushkaAvatar(voice_engine=voice)
+    avatar.attach_to(app.root)
+
     # Start the Proactive Chronos thread (needs the GUI reference)
     chronos = AnushkaChronos(brain, app)
 
@@ -53,6 +58,7 @@ def main():
     # Cleanup when GUI closes
     vision.stop()
     chronos.stop()
+    avatar.close()
 
 if __name__ == "__main__":
     main()
